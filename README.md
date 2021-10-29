@@ -1,7 +1,7 @@
 # Self-Improving BeatGAN via Knowledge Distillation
 
 ## Overview
- > ECG 데이터에서 비정상적인 리듬을 감지하여 부정맥을 판단할 수 있는 AI기반의 딥러닝 알고리즘인 BeatGAN에<br>지식 증류 기법을 융합하여 자가 개선을 하는 딥러닝 모델 SI-BeatGAN을 제안한다.
+ > ECG 데이터에서 비정상적인 리듬을 감지하여 부정맥을 판단할 수 있는 AI기반의 딥러닝 알고리즘인 BeatGAN에 지식 증류 기법을 융합하여 자가 개선을 하는 딥러닝 모델 SI-BeatGAN을 제안한다.
 
 #### 지도교수님
 - 박경문
