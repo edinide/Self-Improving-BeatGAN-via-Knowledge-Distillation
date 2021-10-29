@@ -54,8 +54,7 @@
 
     `sh run_ecg.sh`
 
-# Environment Setting
-
+## Environment Setting
 - python 3.7.6
 - PyTorch 1.7.1
 - cuda 11.0
