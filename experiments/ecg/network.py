@@ -25,8 +25,57 @@ def weights_init(mod):
     elif classname.find('Linear') !=-1 :
         torch.nn.init.xavier_uniform(mod.weight)
         mod.bias.data.fill_(0.01)
+"""
+class Encoder(nn.Module):
+    def __init__(self, ngpu,opt,out_z):
+        super(Encoder, self).__init__()
+        self.ngpu = ngpu
+        self.conv1=nn.Sequential(
+            # input is (nc) x 320
+            nn.Conv1d(opt.nc,opt.ndf,4,2,1,bias=False),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # state size. (ndf) x 160
+        self.conv2=nn.Sequential(
+            nn.Conv1d(opt.ndf, opt.ndf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # state size. (ndf*2) x 80
+        self.conv3=nn.Sequential(
+            nn.Conv1d(opt.ndf * 2, opt.ndf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # state size. (ndf*4) x 40
+        self.conv4=nn.Sequential(
+            nn.Conv1d(opt.ndf * 4, opt.ndf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ndf * 8),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # state size. (ndf*8) x 20
+        self.conv5=nn.Sequential(
+            nn.Conv1d(opt.ndf * 8, opt.ndf * 16, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ndf * 16),
+            nn.LeakyReLU(0.2, inplace=True)
+        )
+        # state size. (ndf*16) x 10
+        self.conv6=nn.Sequential(  
+            nn.Conv1d(opt.ndf * 16, out_z, 10, 1, 0, bias=False)
+        )
+        # state size. (nz) x 1
+    
+    def forward(self, input):
 
-
+        output=self.conv1(input)
+        output=self.conv2(output)
+        output=self.conv3(output)
+        output=self.conv4(output)
+        output=self.conv5(output)
+        output=self.conv6(output)
+        
+        return output
+"""
 class Encoder(nn.Module):
     def __init__(self, ngpu,opt,out_z):
         super(Encoder, self).__init__()
@@ -67,8 +116,59 @@ class Encoder(nn.Module):
 
 
 ##
+"""
+class Decoder(nn.Module):
+    def __init__(self, ngpu,opt):
+        super(Decoder, self).__init__()
+        self.ngpu = ngpu
+        self.conv1=nn.Sequential(
+            # input is Z, going into a convolution
+            nn.ConvTranspose1d(opt.nz,opt.ngf*16,10,1,0,bias=False),
+            nn.BatchNorm1d(opt.ngf*16),
+            nn.ReLU(True)
+        )
+        # state size. (ngf*16) x10
+        self.conv2=nn.Sequential(
+            nn.ConvTranspose1d(opt.ngf * 16, opt.ngf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ngf * 8),
+            nn.ReLU(True)
+        )
+        # state size. (ngf*8) x 20
+        self.conv3=nn.Sequential(
+            nn.ConvTranspose1d(opt.ngf * 8, opt.ngf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ngf * 4),
+            nn.ReLU(True)
+        )
+        # state size. (ngf*4) x 40
+        self.conv4=nn.Sequential(
+            nn.ConvTranspose1d(opt.ngf * 4, opt.ngf*2, 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ngf*2),
+            nn.ReLU(True)
+        )
+        # state size. (ngf*2) x 80
+        self.conv5=nn.Sequential(
+            nn.ConvTranspose1d(opt.ngf * 2, opt.ngf , 4, 2, 1, bias=False),
+            nn.BatchNorm1d(opt.ngf ),
+            nn.ReLU(True)
+        )
+        # state size. (ngf) x 160
+        self.conv6=nn.Sequential(  
+            nn.ConvTranspose1d(opt.ngf , opt.nc, 4, 2, 1, bias=False),
+            nn.Tanh()
+        )
+        # state size. (nc) x 320
 
+    def forward(self, input):
 
+        output=self.conv1(input)
+        output=self.conv2(output)
+        output=self.conv3(output)
+        output=self.conv4(output)
+        output=self.conv5(output)
+        output=self.conv6(output)
+        
+        return output
+"""
 class Decoder(nn.Module):
     def __init__(self, ngpu,opt):
         super(Decoder, self).__init__()
@@ -191,8 +291,8 @@ class AD_MODEL(object):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        torch.save(self.G.state_dict(), os.path.join(save_dir, self.model+"_folder_"+str(self.opt.folder) + '_G.pkl'))
-        torch.save(self.D.state_dict(), os.path.join(save_dir, self.model+"_folder_"+str(self.opt.folder) + '_D.pkl'))
+        torch.save(self.G.state_dict(), os.path.join(save_dir, "beatgan"+"_folder_"+str(self.opt.folder) + '_G.pkl'))
+        torch.save(self.D.state_dict(), os.path.join(save_dir, "beatgan"+"_folder_"+str(self.opt.folder) + '_D.pkl'))
 
     def save_loss(self,train_hist):
         loss_plot(train_hist, os.path.join(self.outf, self.model, self.dataset), self.model)
