@@ -9,8 +9,7 @@ from options import Options ##
 from data import load_data ##
 
 from network import Encoder,Decoder,AD_MODEL,weights_init,print_network
-from distill import DistillKL
-#from distill import Attention ##
+from distill import DistillKL, DistillFT
 
 dirname=os.path.dirname
 sys.path.insert(0,dirname(dirname(os.path.abspath(__file__))))
@@ -80,6 +79,7 @@ class BeatGAN_t(AD_MODEL):
         self.mse_criterion=nn.MSELoss()
 
 
+
         self.optimizerD = optim.Adam(self.D.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
         self.optimizerG = optim.Adam(self.G.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
@@ -99,10 +99,12 @@ class BeatGAN_t(AD_MODEL):
         self.out_d_real = None
         self.feat_real = None
 
+        #self.feat_list= None
         self.fake = None
         self.latent_i = None
         self.out_d_fake = None
         self.feat_fake = None
+        
 
         self.err_d_real = None
         self.err_d_fake = None
@@ -218,12 +220,12 @@ class BeatGAN_t(AD_MODEL):
         # --
         # Train with real
         self.label.data.resize_(self.opt.batchsize).fill_(self.real_label)
-        self.out_d_real, self.feat_real = self.D(self.input)
+        self.out_d_real, self.feat_real= self.D(self.input) #
         # --
         # Train with fake
         self.label.data.resize_(self.opt.batchsize).fill_(self.fake_label)
         self.fake, self.latent_i = self.G(self.input)
-        self.out_d_fake, self.feat_fake = self.D(self.fake)
+        self.out_d_fake, self.feat_fake = self.D(self.fake) #
         # --
 
 
@@ -247,8 +249,8 @@ class BeatGAN_t(AD_MODEL):
         self.G.zero_grad()
         self.label.data.resize_(self.opt.batchsize).fill_(self.real_label)
         self.fake, self.latent_i = self.G(self.input)
-        self.out_g, self.feat_fake = self.D(self.fake)
-        _, self.feat_real = self.D(self.input)
+        self.out_g, self.feat_fake = self.D(self.fake) #
+        _, self.feat_real = self.D(self.input) #
 
 
         # self.err_g_adv = self.bce_criterion(self.out_g, self.label)   # loss for ce
@@ -318,7 +320,8 @@ class BeatGAN_t(AD_MODEL):
 
                 self.an_scores[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = error.reshape(error.size(0))
                 self.gt_labels[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = self.gt.reshape(error.size(0))
-                self.latent_i [i*self.opt.batchsize : i*self.opt.batchsize+error.size(0), :] = latent_i.reshape(error.size(0), self.opt.nz)
+                
+                
 
 
             # Scale error vector between [0, 1]
@@ -390,7 +393,7 @@ class BeatGAN_t(AD_MODEL):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        y_N, y_pred_N=self.predict(self.dataloader["test_N"],scale=False)
+        y_N, y_pred_N =self.predict(self.dataloader["test_N"],scale=False)
         y_S, y_pred_S = self.predict(self.dataloader["test_S"],scale=False)
         y_V, y_pred_V = self.predict(self.dataloader["test_V"],scale=False)
         y_F, y_pred_F = self.predict(self.dataloader["test_F"],scale=False)
@@ -471,11 +474,10 @@ class BeatGAN_s(AD_MODEL):
         if not self.opt.istest:
             print_network(self.D)
 
-
         self.bce_criterion = nn.BCELoss()
         self.mse_criterion=nn.MSELoss()
         self.kd_criterion=DistillKL(opt)
-        #self.att_criterion=Attention(opt) ##
+        #self.ft_criterion=DistillFT(opt) 
 
 
         self.optimizerD = optim.Adam(self.D.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
@@ -510,6 +512,7 @@ class BeatGAN_s(AD_MODEL):
         self.err_g_adv = None
         self.err_g_rec = None
         self.err_g = None
+        self.err_g_ft=None
 
 
     def train(self):
@@ -522,6 +525,7 @@ class BeatGAN_s(AD_MODEL):
         self.teacher.copy() #load teacher G model and save to student path
         self.y_,self.y_pred=self.predict(self.dataloader["train"]) ##
         self.teacher.y_t,self.teacher.y_pred_t=self.teacher.predict(self.dataloader["train"]) ##
+        
         
         print("Train model.")
         start_time = time.time()
@@ -629,7 +633,7 @@ class BeatGAN_s(AD_MODEL):
 
         self.err_d_real = self.bce_criterion(self.out_d_real, torch.full((self.batchsize,), self.real_label, device=self.device,dtype=torch.float))
         self.err_d_fake = self.bce_criterion(self.out_d_fake, torch.full((self.batchsize,), self.fake_label, device=self.device,dtype=torch.float))
-
+        
 
         self.err_d=self.err_d_real+self.err_d_fake
         self.err_d.backward()
@@ -651,15 +655,15 @@ class BeatGAN_s(AD_MODEL):
         _, self.feat_real = self.D(self.input)
 
 
-
         # self.err_g_adv = self.bce_criterion(self.out_g, self.label)   # loss for ce
         self.err_g_adv=self.mse_criterion(self.feat_fake,self.feat_real)  # loss for feature matching
         self.err_g_rec = self.mse_criterion(self.fake, self.input)  # constrain x' to look like x
 
-
         #self.err_g =  self.err_g_rec + self.err_g_adv * self.opt.w_adv
         self.err_g = self.err_g_rec + self.err_g_adv * self.opt.w_adv
-        self.err_g+= self.kd_criterion(self.y_pred,self.teacher.y_t)
+        self.err_g+= self.kd_criterion(self.y_pred,self.teacher.y_pred_t) #knowledge distillation
+        #self.err_g+= self.ft_criterion(self.feat_list,self.teacher.feat_list)# feature distillation
+        
         self.err_g.backward()
         self.optimizerG.step()
 
@@ -705,7 +709,7 @@ class BeatGAN_s(AD_MODEL):
             self.latent_i  = torch.zeros(size=(len(dataloader_.dataset), self.opt.nz), dtype=torch.float32, device=self.device)
             self.dis_feat = torch.zeros(size=(len(dataloader_.dataset), self.opt.ndf*16*10), dtype=torch.float32,
                                         device=self.device)
-
+            
 
             for i, data in enumerate(dataloader_, 0):
 
@@ -721,8 +725,8 @@ class BeatGAN_s(AD_MODEL):
 
                 self.an_scores[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = error.reshape(error.size(0))
                 self.gt_labels[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = self.gt.reshape(error.size(0))
-                self.latent_i [i*self.opt.batchsize : i*self.opt.batchsize+error.size(0), :] = latent_i.reshape(error.size(0), self.opt.nz)
-
+                
+               
 
             # Scale error vector between [0, 1]
             if scale:
@@ -730,6 +734,7 @@ class BeatGAN_s(AD_MODEL):
 
             y_=self.gt_labels.cpu().numpy()
             y_pred=self.an_scores.cpu().numpy()
+            
 
 
             return y_,y_pred
@@ -795,16 +800,16 @@ class BeatGAN_s(AD_MODEL):
             os.makedirs(save_dir)
 
 
-        y_N, y_pred_N=self.predict(self.dataloader["test_N"],scale=False)
+        y_N, y_pred_N =self.predict(self.dataloader["test_N"],scale=False)
         y_S, y_pred_S = self.predict(self.dataloader["test_S"],scale=False)
         y_V, y_pred_V = self.predict(self.dataloader["test_V"],scale=False)
         y_F, y_pred_F = self.predict(self.dataloader["test_F"],scale=False)
         y_Q, y_pred_Q = self.predict(self.dataloader["test_Q"],scale=False)
         over_all=np.concatenate([y_pred_N,y_pred_S,y_pred_V,y_pred_F,y_pred_Q])
         over_all_gt=np.concatenate([y_N,y_S,y_V,y_F,y_Q])
+        
+        
 
-        print("over_all: ",over_all)
-        print("over_all_gt: ", over_all_gt)
        
         min_score,max_score=np.min(over_all),np.max(over_all)
         A_res={
